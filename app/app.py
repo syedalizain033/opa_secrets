@@ -1,3 +1,4 @@
+import sys
 from flask import (
     Flask,
     request,
@@ -20,56 +21,76 @@ app = Flask(__name__)
 
 app.secret_key = os.getenv("COOKIE_SECRET", "TEST_SECRET")
 
-users = [
-    {
-        "id": "1822f21a-d720-4494-a31f-943bec140789",
-        "username": "congon4tor",
-        "role": "admin",
-        "password": os.getenv("AMDIN_PASSWORD", "qwerty123"),
-        "picture": "default.jpg",
-    },
-    {
-        "id": "243eae36-621a-47a6-b306-841bbffbcac4",
-        "username": "jellytalk",
-        "role": "user",
-        "password": "test",
-        "picture": "default.jpg",
-    },
-    {
-        "id": "9d6492e1-c73d-4231-add7-7ea285fc98a1",
-        "username": "pinkykoala",
-        "role": "user",
-        "password": "test",
-        "picture": "default.jpg",
-    },
-]
+users = []
 
-secrets = [
-    {
-        "id": "afce78a8-23d6-4f07-81f2-47c96ddb10cf",
-        "name": "Flag",
-        "value": os.getenv("FLAG", "TEST_FLAG"),
-        "readers": ["1822f21a-d720-4494-a31f-943bec140789"],
-        "writers": ["1822f21a-d720-4494-a31f-943bec140789"],
-        "owner": "1822f21a-d720-4494-a31f-943bec140789",
-    },
-    {
-        "id": "d2e0704c-55a5-4a63-aad5-849798283da5",
-        "name": "Test 1",
-        "value": "test secret",
-        "readers": ["243eae36-621a-47a6-b306-841bbffbcac4"],
-        "writers": ["243eae36-621a-47a6-b306-841bbffbcac4"],
-        "owner": "243eae36-621a-47a6-b306-841bbffbcac4",
-    },
-    {
-        "id": "491e16d2-fd2b-4965-bcb6-5931ef61ed5b",
-        "name": "Test 2",
-        "value": "test secret 2",
-        "readers": ["9d6492e1-c73d-4231-add7-7ea285fc98a1"],
-        "writers": ["9d6492e1-c73d-4231-add7-7ea285fc98a1"],
-        "owner": "9d6492e1-c73d-4231-add7-7ea285fc98a1",
-    },
-]
+secrets = []
+
+
+@app.before_first_request
+def before_first_request():
+    # Init all OPA things
+    u = [
+        {
+            "id": "1822f21a-d720-4494-a31f-943bec140789",
+            "username": "congon4tor",
+            "role": "admin",
+            "password": os.getenv("AMDIN_PASSWORD", "qwerty123"),
+        },
+        {
+            "id": "243eae36-621a-47a6-b306-841bbffbcac4",
+            "username": "jellytalk",
+            "role": "user",
+            "password": "test",
+        },
+        {
+            "id": "9d6492e1-c73d-4231-add7-7ea285fc98a1",
+            "username": "pinkykoala",
+            "role": "user",
+            "password": "test",
+        },
+    ]
+    create_user(u[0]["id"], u[0]["username"], u[0]["role"], u[0]["password"])
+    create_user(u[1]["id"], u[1]["username"], u[1]["role"], u[1]["password"])
+    create_user(u[2]["id"], u[2]["username"], u[2]["role"], u[2]["password"])
+
+    s = [
+        {
+            "id": "afce78a8-23d6-4f07-81f2-47c96ddb10cf",
+            "name": "Flag",
+            "value": os.getenv("FLAG", "TEST_FLAG"),
+        },
+        {
+            "id": "d2e0704c-55a5-4a63-aad5-849798283da5",
+            "name": "Test 1",
+            "value": "test secret",
+        },
+        {
+            "id": "491e16d2-fd2b-4965-bcb6-5931ef61ed5b",
+            "name": "Test 2",
+            "value": "test secret 2",
+        },
+    ]
+    add_secret(s[0]["id"], s[0]["name"], s[0]["value"], u[0]["id"])
+    add_secret(s[1]["id"], s[1]["name"], s[1]["value"], u[1]["id"])
+    add_secret(s[2]["id"], s[2]["name"], s[2]["value"], u[2]["id"])
+
+    # Add policies
+    headers = {
+        "Content-Type": "text/plain",
+    }
+    payload = 'package access.read\n\ndefault allow_read = false\n\nallow_read {\n  data.users[input.user].role == "admin"\n}\n\nallow_read {\n  data.users[input.user].role == "user"\n  data.readers[input.secret][_] == input.user\n}\n'
+    r = requests.put(
+        url=f"http://localhost:8181/v1/policies/access/read",
+        headers=headers,
+        data=payload,
+    )
+
+    payload = 'package access.write\n\ndefault allow_write = false\n\nallow_write {\n  data.users[input.user].role == "admin"\n}\n\nallow_write {\n  data.users[input.user].role == "user"\n  data.writers[input.secret][_] == input.user\n}\n'
+    r = requests.put(
+        url=f"http://localhost:8181/v1/policies/access/write",
+        headers=headers,
+        data=payload,
+    )
 
 
 def create_user(id, username, role, password):
@@ -101,6 +122,7 @@ def create_user(id, username, role, password):
                 "picture": "default.jpg",
             }
         )
+        print(r.text)
         return False, "Error creating user"
     return True, ""
 

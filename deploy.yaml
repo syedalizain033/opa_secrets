@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: opa-secrets
+  name: opa-secrets
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: opa-secrets
+  template:
+    metadata:
+      labels:
+        app: opa-secrets
+    spec:
+      containers:
+      - env:
+        - name: FLAG
+          value: TEST_FLAG
+        - name: AMDIN_PASSWORD
+          value: qwerty123
+        - name: COOKIE_SECRET
+          value: TEST_SECRET
+        image: opa_secrets
+        imagePullPolicy: Never
+        name: opa-secrets
+        ports:
+        - containerPort: 5000
+          protocol: TCP
+        resources:
+          limits:
+            cpu: 100m
+            ephemeral-storage: 50M
+            memory: 50Mi
+      - args:
+        - run
+        - --server
+        - --addr
+        - :8181
+        image: openpolicyagent/opa:latest
+        imagePullPolicy: IfNotPresent
+        name: opa
+        resources:
+          limits:
+            cpu: 100m
+            ephemeral-storage: 50M
+            memory: 50Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: opa-secrets
+  namespace: default
+spec:
+  ports:
+  - name: opa-secrets-0
+    nodePort: 30259
+    port: 5000
+    protocol: TCP
+    targetPort: 5000
+  selector:
+    app: opa-secrets
+  type: NodePort
